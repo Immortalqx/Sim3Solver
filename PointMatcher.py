@@ -1,28 +1,5 @@
-import argparse
 import cv2
 import numpy as np
-import os
-
-
-# TODO 这里需要改成解析参数文件才行！！！
-def parse_args():
-    """
-    parse args
-    :return: arge parser
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-r", "--rgb_image",
-                        help="path to depth map", type=str, required=True)
-    parser.add_argument("-d", "--depth_image",
-                        help="path to depth map", type=str, required=True)
-    parser.add_argument("-min", "--min_depth_percentile",
-                        help="minimum visualization depth percentile",
-                        type=float, default=5)
-    parser.add_argument("-max", "--max_depth_percentile",
-                        help="maximum visualization depth percentile",
-                        type=float, default=95)
-    args = parser.parse_args()
-    return args
 
 
 def read_array(path):
@@ -192,3 +169,62 @@ def get_match_pair(kp1, kp2, good_match):
         y2 = int(kp2[m.trainIdx].pt[1])
         match_pair.append([[x1, y1], [x2, y2]])
     return match_pair
+
+
+# TODO 还没有实现的函数
+def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, scale=1.0):
+    """
+    获得一一匹配的点云对，用于后面的sim3求解
+    :param match_pair: matched point coordinate
+    :param rgb1: img1 rgb
+    :param rgb2: img2 rgb
+    :param depth1: img1 depth
+    :param depth2: img2 depth
+    :param pose1: img1 pose
+    :param pose2: img2 pose
+    :param K: camera K
+    :param scale: scale, default=1.0
+    :return: points1, points2
+    """
+    points1 = []
+    points2 = []
+    for mp in match_pair:
+        point1 = pixel_to_point(img1[mp[0][1]][mp[0][0]],
+                                img1_depth[mp[0][1]][mp[0][0]],
+                                mp[0][0], mp[0][1],
+                                cameraK, img1_pose)
+        point2 = pixel_to_point(img2[mp[1][1]][mp[1][0]],
+                                img2_depth[mp[1][1]][mp[1][0]],
+                                mp[1][0], mp[1][1],
+                                cameraK, img2_pose)
+
+        if point1 is None or point2 is None:
+            continue
+
+        points1.append(point1)
+        points2.append(point2)
+    return points1, points2
+
+
+if __name__ == "__main__":
+    from DataLoader import DataLoader
+
+    loader = DataLoader("data/param.yaml")
+
+    images1, images2 = loader.load_images()
+    depth1, depth2 = loader.load_depth()
+    pose1, pose2 = loader.load_pose()
+    cameraK = loader.load_cameraK()
+
+    img1 = images1[0]
+    img2 = images2[0]
+    img1_depth = depth1[0]
+    img2_depth = depth2[0]
+    img1_pose = pose1[0]
+    img2_pose = pose2[0]
+
+    kp1, kp2, good_match = match_feather_point(img1, img2)
+    match_pair = get_match_pair(kp1, kp2, good_match)
+    points1, points2 = get_match_points(match_pair, img1, img2, img1_depth, img1_depth, img1_pose, img2_pose, cameraK)
+    print(len(points1))
+    print(len(points2))

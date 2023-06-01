@@ -1,5 +1,3 @@
-%YAML:1.0
----
 # 相机参数
 Camera.fx: 1059.6885013929655
 Camera.fy: 1059.6885013929655
@@ -9,6 +7,10 @@ Camera.k1: 0
 Camera.k2: 0
 Camera.p1: 0
 Camera.p2: 0
+
+# 深度图处理参数
+min_depth_percentile: 5
+max_depth_percentile: 95
 
 # 第一个点云
 PointCloudA:
