@@ -124,31 +124,35 @@ def pixel_to_point(rgb, depth, u, v, K, pose, scale=1.0):
     return point
 
 
-def match_feather_point(img1, img2):
+def match_feather_point(img1, img2, threshold=0.5):
     """
     计算特征点并进行匹配
     :param img1: first image
     :param img2: second image
+    :param threshold: threshold of distance
     :return: keypoint of img1, keypoint of img2, good match from img1 to img2
     """
     # ================ 计算SIFT特征 ================
     sift = cv2.SIFT_create()
-    kp1, des1 = sift.detectAndCompute(img1, None)
-    kp2, des2 = sift.detectAndCompute(img2, None)
+    kp1, des1 = sift.detectAndCompute(cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY), None)
+    kp2, des2 = sift.detectAndCompute(cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY), None)
 
     # ================ FLANN特征匹配 ================
-    FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-    search_params = dict(checks=50)
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(des1, des2, k=2)
+    # FLANN_INDEX_KDTREE = 1
+    # index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    # search_params = dict(checks=50)
+    # flann = cv2.FlannBasedMatcher(index_params, search_params)
+    # matches = flann.knnMatch(des1, des2, k=2)
+    # ================ 暴力匹配 ================
+    matcher = cv2.BFMatcher()
+    matches = matcher.knnMatch(des1, des2, k=2)  # k=2,表示寻找两个最近邻
     # ================ 提取好的匹配点对 ================
     # TODO 此处使用描述子距离得到的匹配对较少，如何尽可能多保留正确匹配对？
     #  使用RANSAC方法？
     #  使用ORBSLAM2的旋转直方图？
     good_match = []
     for m, n in matches:
-        if m.distance < 0.5 * n.distance:  # 如果2个配对中第一匹配的距离小于第二匹配的距离的1/2，基本可以说明这个第一配对是两幅图像中独特的，不重复的特征点,可以保留。
+        if m.distance < threshold * n.distance:  # 如果2个配对中第一匹配的距离小于第二匹配的距离的1/2，基本可以说明这个第一配对是两幅图像中独特的，不重复的特征点,可以保留。
             good_match.append(m)
     return kp1, kp2, good_match
 
@@ -171,8 +175,7 @@ def get_match_pair(kp1, kp2, good_match):
     return match_pair
 
 
-# TODO 还没有实现的函数
-def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, scale=1.0):
+def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, scale=1.0, with_color=False):
     """
     获得一一匹配的点云对，用于后面的sim3求解
     :param match_pair: matched point coordinate
@@ -184,7 +187,8 @@ def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, sc
     :param pose2: img2 pose
     :param K: camera K
     :param scale: scale, default=1.0
-    :return: points1, points2
+    :param with_color: get color points, default=False
+    :return: points1, points2[numpy array]
     """
     points1 = []
     points2 = []
@@ -201,9 +205,14 @@ def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, sc
         if point1 is None or point2 is None:
             continue
 
-        points1.append(point1)
-        points2.append(point2)
-    return points1, points2
+        if with_color:
+            points1.append(point1)
+            points2.append(point2)
+        else:
+            points1.append(point1[:3])
+            points2.append(point2[:3])
+
+    return np.array(points1), np.array(points2)
 
 
 if __name__ == "__main__":
@@ -216,15 +225,33 @@ if __name__ == "__main__":
     pose1, pose2 = loader.load_pose()
     cameraK = loader.load_cameraK()
 
-    img1 = images1[0]
-    img2 = images2[0]
-    img1_depth = depth1[0]
-    img2_depth = depth2[0]
-    img1_pose = pose1[0]
-    img2_pose = pose2[0]
+    points1 = None
+    points2 = None
+    for idx in range(0, len(images1)):
+        img1 = images1[idx]
+        img2 = images2[idx]
+        img1_depth = depth1[idx]
+        img2_depth = depth2[idx]
+        img1_pose = pose1[idx]
+        img2_pose = pose2[idx]
 
-    kp1, kp2, good_match = match_feather_point(img1, img2)
-    match_pair = get_match_pair(kp1, kp2, good_match)
-    points1, points2 = get_match_points(match_pair, img1, img2, img1_depth, img1_depth, img1_pose, img2_pose, cameraK)
-    print(len(points1))
-    print(len(points2))
+        kp1, kp2, good_match = match_feather_point(img1, img2, 0.5)
+        match_pair = get_match_pair(kp1, kp2, good_match)
+
+        if points1 is None and points2 is None:
+            points1, points2 = get_match_points(match_pair, img1, img2, img1_depth, img1_depth,
+                                                img1_pose, img2_pose, cameraK)
+        else:
+            ps1, ps2 = get_match_points(match_pair, img1, img2, img1_depth, img1_depth,
+                                        img1_pose, img2_pose, cameraK)
+            points1 = np.vstack((points1, ps1))
+            points2 = np.vstack((points2, ps2))
+
+    print("匹配的点数:\t", points1.shape[0])
+
+    from Sim3Solver import umeyama_alignment
+
+    R, t, s = umeyama_alignment(points1.T, points2.T, True)
+    print("R:\n", R)
+    print("t:\t", t)
+    print("s:\t", s)
