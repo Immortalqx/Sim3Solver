@@ -259,10 +259,15 @@ if __name__ == "__main__":
     # print(points2)
     # print(point2ds2)
 
-    from Sim3Solver import umeyama_alignment
+    # from Sim3Solver import umeyama_alignment
+    #
+    # # R, t, s = umeyama_alignment(points1.T, points2.T, True)
+    # Tw = umeyama_alignment(points2.T, points1.T, True)
+    # print("T:\n", Tw)
+
+    from Sim3Solver import RANSAC
 
     # R, t, s = umeyama_alignment(points1.T, points2.T, True)
-    R, t, s = umeyama_alignment(points2.T, points1.T, True)
-    print("R:\n", R)
-    print("t:\t", t)
-    print("s:\t", s)
+    T12i, T21i = RANSAC(points1, points2, point2ds1, point2ds2, cameraK)
+    print("T12i:\n", T12i)
+    print("T21i:\n", T21i)
