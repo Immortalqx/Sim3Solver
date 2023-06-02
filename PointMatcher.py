@@ -193,14 +193,14 @@ def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, sc
     points1 = []
     points2 = []
     for mp in match_pair:
-        point1 = pixel_to_point(img1[mp[0][1]][mp[0][0]],
-                                img1_depth[mp[0][1]][mp[0][0]],
+        point1 = pixel_to_point(rgb1[mp[0][1]][mp[0][0]],
+                                depth1[mp[0][1]][mp[0][0]],
                                 mp[0][0], mp[0][1],
-                                cameraK, img1_pose)
-        point2 = pixel_to_point(img2[mp[1][1]][mp[1][0]],
-                                img2_depth[mp[1][1]][mp[1][0]],
+                                K, pose1, scale)
+        point2 = pixel_to_point(rgb2[mp[1][1]][mp[1][0]],
+                                depth2[mp[1][1]][mp[1][0]],
                                 mp[1][0], mp[1][1],
-                                cameraK, img2_pose)
+                                cameraK, pose2, scale)
 
         if point1 is None or point2 is None:
             continue
@@ -227,6 +227,9 @@ if __name__ == "__main__":
 
     points1 = None
     points2 = None
+    point2ds1 = None
+    point2ds2 = None
+
     for idx in range(0, len(images1)):
         img1 = images1[idx]
         img2 = images2[idx]
@@ -237,8 +240,9 @@ if __name__ == "__main__":
 
         kp1, kp2, good_match = match_feather_point(img1, img2, 0.5)
         match_pair = get_match_pair(kp1, kp2, good_match)
-
-        if points1 is None and points2 is None:
+        if point2ds1 is None and point2ds2 is None and points1 is None and points2 is None:
+            point2ds1 = np.array([x[0] for x in match_pair])
+            point2ds2 = np.array([x[1] for x in match_pair])
             points1, points2 = get_match_points(match_pair, img1, img2, img1_depth, img1_depth,
                                                 img1_pose, img2_pose, cameraK)
         else:
@@ -246,12 +250,19 @@ if __name__ == "__main__":
                                         img1_pose, img2_pose, cameraK)
             points1 = np.vstack((points1, ps1))
             points2 = np.vstack((points2, ps2))
+            point2ds1 = np.vstack((point2ds1, np.array([x[0] for x in match_pair])))
+            point2ds2 = np.vstack((point2ds2, np.array([x[1] for x in match_pair])))
 
     print("匹配的点数:\t", points1.shape[0])
+    # print(points1)
+    # print(point2ds1)
+    # print(points2)
+    # print(point2ds2)
 
     from Sim3Solver import umeyama_alignment
 
-    R, t, s = umeyama_alignment(points1.T, points2.T, True)
+    # R, t, s = umeyama_alignment(points1.T, points2.T, True)
+    R, t, s = umeyama_alignment(points2.T, points1.T, True)
     print("R:\n", R)
     print("t:\t", t)
     print("s:\t", s)
