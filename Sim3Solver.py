@@ -199,6 +199,8 @@ def reproject_error(point3d, point2d, Tcw, K):
     y = point3d[1] * inv_z
     repoject_point2d = np.array([fx * x + cx, fy * y + cy])
 
+    # print(point2d, repoject_point2d)
+
     return np.sum((point2d - repoject_point2d) ** 2)
 
 
@@ -210,9 +212,9 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K):
     # 数据规模
     SIZE = point3ds1.shape[0]
     # 迭代最大次数，每次得到更好的估计会优化iters的数值，默认10000
-    iters = 10000
-    # 数据和模型之间可接受的差值，默认9(不超过半径为3的圆)
-    sigma = 9
+    iters = 100
+    # 数据和模型之间可接受的差值，默认50(不超过半径为7的圆)
+    sigma = 50
     # 内点数目
     pretotal = 0
     # 希望的得到正确模型的概率，默认0.99
@@ -220,16 +222,20 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K):
     # 初始化一下
     T12i = None
     T21i = None
+    # Tcw = None
     for i in range(iters):
         # 随机在数据中选出三个点去求解模型
         sample_index = random.sample(range(SIZE), 3)
+        # sample_index = random.sample(range(SIZE), 10)
         T12i, T21i = compute_sim3(point3ds1[sample_index], point3ds2[sample_index])
+        # Tcw = umeyama_alignment(point3ds1[sample_index].T, point3ds2[sample_index].T)
 
         # 算出内点数目
         total_inlier = 0
         for index in range(SIZE):
             if reproject_error(point3ds2[index], point2ds1[index], T12i, K) < sigma and \
                     reproject_error(point3ds1[index], point2ds2[index], T21i, K) < sigma:
+                # if reproject_error(point3ds2[index], point2ds1[index], Tcw, K) < sigma:
                 total_inlier = total_inlier + 1
         # 判断当前的模型是否比之前估算的模型好
         if total_inlier > pretotal:
@@ -241,6 +247,7 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K):
             break
     print("内点数目:\t", pretotal)
     return T12i, T21i
+    # return Tcw
 
 
 if __name__ == "__main__":

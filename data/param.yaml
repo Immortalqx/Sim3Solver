@@ -9,8 +9,8 @@ Camera.p1: 0
 Camera.p2: 0
 
 # 深度图处理参数
-min_depth_percentile: 1
-max_depth_percentile: 99
+min_depth_percentile: 5
+max_depth_percentile: 95
 
 # 第一个点云
 PointCloudA:
