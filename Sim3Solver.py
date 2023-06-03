@@ -204,6 +204,22 @@ def reproject_error(point3d, point2d, Tcw, K):
     return np.sum((point2d - repoject_point2d) ** 2)
 
 
+# 重投影误差有问题，可能是COLMAP拿到深度图的时候做了什么处理。这里我尝试用一下点与点之间的记录计算一下
+# TODO 这里需要传入变换矩阵，然后对某一个点进行一个处理，变换到同一坐标系下！
+def geometric_error(point3d1, point3d2, T21i):
+    """
+    计算3D点之间的距离
+    :param point3d1: 第一个3D点
+    :param point3d2: 第二个3D点
+    :param T21i: 第二个3D点坐标系到第一个3D点坐标系的sim3矩阵
+    :return: 距离的平方
+    """
+    # R*P+t
+    point3d2 = T21i[0:3, 0:3] * point3d2 + T21i[0:3, 3]
+    print(np.sum((point3d1 - point3d2) ** 2))
+    return np.sum((point3d1 - point3d2) ** 2)
+
+
 # RANSAC算法模板：https://github.com/Immortalqx/RANSAC/blob/master/RANSAC_3D.py
 def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K):
     """
@@ -212,9 +228,9 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K):
     # 数据规模
     SIZE = point3ds1.shape[0]
     # 迭代最大次数，每次得到更好的估计会优化iters的数值，默认10000
-    iters = 100
+    iters = 10000
     # 数据和模型之间可接受的差值，默认50(不超过半径为7的圆)
-    sigma = 50
+    sigma = 20
     # 内点数目
     pretotal = 0
     # 希望的得到正确模型的概率，默认0.99
@@ -233,8 +249,9 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K):
         # 算出内点数目
         total_inlier = 0
         for index in range(SIZE):
-            if reproject_error(point3ds2[index], point2ds1[index], T12i, K) < sigma and \
-                    reproject_error(point3ds1[index], point2ds2[index], T21i, K) < sigma:
+            if geometric_error(point3ds1[index], point3ds2[index], T12i) < sigma:
+                # if reproject_error(point3ds2[index], point2ds1[index], T12i, K) < sigma and \
+                #         reproject_error(point3ds1[index], point2ds2[index], T21i, K) < sigma:
                 # if reproject_error(point3ds2[index], point2ds1[index], Tcw, K) < sigma:
                 total_inlier = total_inlier + 1
         # 判断当前的模型是否比之前估算的模型好
@@ -263,6 +280,7 @@ if __name__ == "__main__":
     # ])
 
     # compute_sim3(test_points1, test_points2, True)
+    # print(geometric_error(test_points1[1], test_points2[1]))
 
     # points3d = np.array([
     #     [100, 200, 300],
