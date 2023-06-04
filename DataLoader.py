@@ -73,7 +73,7 @@ class DataLoader:
 
 
 if __name__ == "__main__":
-    loader = DataLoader("data/param.yaml")
+    loader = DataLoader("data/param_test.yaml")
     print(loader.cameraK)
     print(loader.images1_path)
     print(loader.images1_depth_path)
