@@ -218,7 +218,7 @@ def get_match_points(match_pair, rgb1, rgb2, depth1, depth2, pose1, pose2, K, sc
 if __name__ == "__main__":
     from DataLoader import DataLoader
 
-    loader = DataLoader("data/param_test.yaml")
+    loader = DataLoader("data/param.yaml")
 
     images1, images2 = loader.load_images()
     depth1, depth2 = loader.load_depth()
@@ -267,7 +267,7 @@ if __name__ == "__main__":
 
     from Sim3Solver import RANSAC
 
-    T12i, T21i = RANSAC(points1, points2, point2ds1, point2ds2, cameraK, fix_scale=False, use_reproject=True)
+    T12i, T21i = RANSAC(points1, points2, point2ds1, point2ds2, cameraK, fix_scale=False, use_reproject=False)
     print("T12i:\n", T12i)
     print("T21i:\n", T21i)
 

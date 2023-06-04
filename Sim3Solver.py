@@ -172,12 +172,13 @@ def compute_sim3(points1: np.ndarray, points2: np.ndarray, FixScale: bool = True
     return T12i, T21i
 
 
+# FIXME: 如果要使用重投影误差，这里输入的3D点必须是相机坐标系下的！
 # 为了RANSAC，这里需要计算一个误差。
 # 考虑到没有尺度的点云，他的距离不是很可控，所以还是选择重投影误差，我认为像素点的范围是可控的
 def reproject_error(point3d, point2d, Tcw, K):
     """
     按照给定的Sim3变换进行投影操作,得到3D点的2D投影点,并计算重投影误差\n
-    NOTICE: 这里计算的是单个点的像素误差！！！
+    NOTICE: 这里计算的是单个点的像素误差！！！而且要使用相机坐标系下的3D点！！！
     :param point3d: 3D点
     :param point2d: 2D点
     :param Tcw: sim3变换矩阵
@@ -278,30 +279,24 @@ if __name__ == "__main__":
     # compute_sim3(test_points1, test_points2, True)
     # print(geometric_error(test_points1[1], test_points2[1]))
 
-    # points3d = np.array([
-    #     [100, 200, 300],
-    #     [150, 250, 300]
-    # ])
-    # points2d = np.array([
-    #     [970, 980],
-    #     [1140, 1150]
-    # ])
-    # Tcw = np.array([
-    #     [1, 0, 0, 0],
-    #     [0, 1, 0, 0],
-    #     [0, 0, 1, 0],
-    #     [0, 0, 0, 1]
-    # ])
-    # K = np.array([
-    #     [1000, 0, 640],
-    #     [0, 1000, 320],
-    #     [0, 0, 1]
-    # ])
-    #
-    # print(reproject_error(points3d[0], points2d[0], Tcw, K))
+    points3d = np.array([
+        [100, 200, 300],
+        [150, 250, 300]
+    ])
+    points2d = np.array([
+        [970, 980],
+        [1140, 1150]
+    ])
+    Tcw = np.array([
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1]
+    ])
+    K = np.array([
+        [1000, 0, 640],
+        [0, 1000, 320],
+        [0, 0, 1]
+    ])
 
-    sample_indx = random.sample(range(10), 3)
-    test_array = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-    print(test_array)
-    print(sample_indx)
-    print(test_array[sample_indx])
+    print(reproject_error(points3d[0], points2d[0], Tcw, K))
