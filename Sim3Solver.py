@@ -68,7 +68,7 @@ def compute_centroid(points):
     :return: 质心、去质心之后的坐标
     """
     # 每一列(x,y,z)分别求和，计算均值centroid
-    centroid = np.sum(points, axis=1) / points.shape[1]
+    centroid = np.sum(points.T, axis=1) / points.shape[1]
     # 减去质心
     cen_points = points - centroid
 
@@ -129,7 +129,7 @@ def compute_sim3(points1: np.ndarray, points2: np.ndarray, FixScale: bool = True
     # 从大到小排序
     idx = e_val.argsort()[::-1]
     e_val = e_val[idx]
-    e_vec = e_vec[idx]
+    e_vec = e_vec.T[idx]  # 因为列向量才是特征向量，所以这里要进行一个转置
     # N 矩阵最大特征值（第一个特征值）对应特征向量就是要求的四元数（q0 q1 q2 q3），其中q0 是实部
     # 将(q1 q2 q3)放入vec（四元数的虚部）
     vec = e_vec[0][1:4]
@@ -137,9 +137,8 @@ def compute_sim3(points1: np.ndarray, points2: np.ndarray, FixScale: bool = True
     # 这一步的ang实际是theta/2，theta 是旋转向量中旋转角度
     ang = math.atan2(np.linalg.norm(vec), e_vec[0][0])
     # vec/norm(vec)归一化得到归一化后的旋转向量,然后乘上角度得到包含了旋转轴和旋转角信息的旋转向量vec
-    vec = 2 * ang * vec / np.linalg.norm(vec)
+    vec = 2.0 * ang * vec / np.linalg.norm(vec)
     # 旋转向量（轴角）转换为旋转矩阵
-    vec = 2 * ang * vec / np.linalg.norm(vec)
     R12i = cv2.Rodrigues(vec)[0]  # 疑问：opencv这个函数算出来的另外一半是什么东西？
 
     # Step 5: Rotate set 2
@@ -147,6 +146,7 @@ def compute_sim3(points1: np.ndarray, points2: np.ndarray, FixScale: bool = True
     points3 = R12i.dot(points2)
 
     # Step 6: 计算尺度因子 Scale
+    # FIXME: 尺度因子 scale 的计算并不稳定，很容易出错！！！
     s12i = 1.0
     if FixScale:
         # 论文中有2个求尺度方法。一个是p632右中的位置，考虑了尺度的对称性
@@ -166,9 +166,10 @@ def compute_sim3(points1: np.ndarray, points2: np.ndarray, FixScale: bool = True
     # Step 8.2 T21
     T21i = np.zeros((4, 4))
     T21i[0:3, 0:3] = (1.0 / s12i) * R12i.T
-    T21i[0:3, 3] = (1.0 / s12i) * R12i.T.dot(t12i)
+    T21i[0:3, 3] = T21i[0:3, 0:3].dot(t12i)
     T21i[3, 3] = 1
 
+    print("尺度:\t", s12i)
     return T12i, T21i
 
 
@@ -200,8 +201,7 @@ def reproject_error(point3d, point2d, Tcw, K):
     y = point3d[1] * inv_z
     repoject_point2d = np.array([fx * x + cx, fy * y + cy])
 
-    print(point2d, repoject_point2d)
-
+    # print(point2d, repoject_point2d)
     return np.sum((point2d - repoject_point2d) ** 2)
 
 
@@ -215,7 +215,8 @@ def geometric_error(point3d1, point3d2, T12i):
     :return: 距离的平方
     """
     # R*P+t
-    point3d2 = T12i[0:3, 0:3] * point3d2 + T12i[0:3, 3]
+    point3d2 = T12i[0:3, 0:3].dot(point3d2) + T12i[0:3, 3]
+
     print(np.sum((point3d1 - point3d2) ** 2))
     return np.sum((point3d1 - point3d2) ** 2)
 
@@ -230,11 +231,11 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K, fix_scale=False, use_r
     # 迭代最大次数，每次得到更好的估计会优化iters的数值，默认10000
     iters = 10000
     # 数据和模型之间可接受的差值，默认50(不超过半径为7的圆)
-    sigma = 50
+    sigma = 4
     # 内点数目
     pretotal = 0
     # 希望的得到正确模型的概率，默认0.9
-    Per = 0.9
+    Per = 0.95
     # 初始化一下
     T12i = None
     T21i = None
@@ -265,38 +266,18 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K, fix_scale=False, use_r
 
 
 if __name__ == "__main__":
-    # test_points1 = np.array([
-    #     [1, 2, 3],
-    #     [2, 3, 4],
-    #     [3, 4, 10]
-    # ])
-    # test_points2 = np.array([
-    #     [9, 8, 7],
-    #     [8, 7, 6],
-    #     [6, 5, 0]
-    # ])
-
-    # compute_sim3(test_points1, test_points2, True)
-    # print(geometric_error(test_points1[1], test_points2[1]))
-
-    points3d = np.array([
-        [100, 200, 300],
-        [150, 250, 300]
+    test_points1 = np.array([
+        [1, 2, 4],
+        [2, 0, 4],
+        [-3, 1, 10]
     ])
-    points2d = np.array([
-        [970, 980],
-        [1140, 1150]
-    ])
-    Tcw = np.array([
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1]
-    ])
-    K = np.array([
-        [1000, 0, 640],
-        [0, 1000, 320],
-        [0, 0, 1]
+    test_points2 = np.array([
+        [2.0001, 4, 8],
+        [4, 0, 8.0002],
+        [-6, 2.0001, 20]
     ])
 
-    print(reproject_error(points3d[0], points2d[0], Tcw, K))
+    T12i, T21i = compute_sim3(test_points1, test_points2 / 2, False)
+    print(T12i)
+    print(T21i)
+    print(geometric_error(test_points1[1], test_points2[1] / 2, T12i))
