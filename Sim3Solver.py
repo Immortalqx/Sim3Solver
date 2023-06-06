@@ -169,7 +169,7 @@ def compute_sim3(points1: np.ndarray, points2: np.ndarray, FixScale: bool = True
     T21i[0:3, 3] = T21i[0:3, 0:3].dot(t12i)
     T21i[3, 3] = 1
 
-    print("尺度:\t", s12i)
+    # print("尺度:\t", s12i)
     return T12i, T21i
 
 
@@ -217,7 +217,7 @@ def geometric_error(point3d1, point3d2, T12i):
     # R*P+t
     point3d2 = T12i[0:3, 0:3].dot(point3d2) + T12i[0:3, 3]
 
-    print(np.sum((point3d1 - point3d2) ** 2))
+    # print(np.sum((point3d1 - point3d2) ** 2))
     return np.sum((point3d1 - point3d2) ** 2)
 
 
@@ -265,19 +265,66 @@ def RANSAC(point3ds1, point3ds2, point2ds1, point2ds2, K, fix_scale=False, use_r
     return T12i, T21i
 
 
-if __name__ == "__main__":
-    test_points1 = np.array([
-        [1, 2, 4],
-        [2, 0, 4],
-        [-3, 1, 10]
+def test_compute_sim3(fix_scale=True):
+    """
+    给定一组3D点（防止随机生成的共线），随机生成R,t,s，测试Sim3的计算是否正确
+    """
+    # 给定一组3D点
+    # points = np.array([
+    #     [1, 0, 0],
+    #     [0, 1, 0],
+    #     [0, 0, 1]
+    # ])
+    points = np.array([
+        [1.58, 8.33, -9.09],
+        [5.27, 9.56, 8.12],
+        [3.14, 9.15, -0.93]
     ])
-    test_points2 = np.array([
-        [2.0001, 4, 8],
-        [4, 0, 8.0002],
-        [-6, 2.0001, 20]
-    ])
+    # 随机生成R（为了确保R是se3矩阵，这里用生成旋转向量的办法）
+    e_vec = np.random.rand(4)
+    vec = e_vec[1:4]
+    ang = math.atan2(np.linalg.norm(vec), e_vec[0])
+    vec = 2.0 * ang * vec / np.linalg.norm(vec)
+    R12i = cv2.Rodrigues(vec)[0]
+    # 随机生成t
+    t12i = np.random.randint(low=3, high=30, size=3) * np.random.rand()
+    # 随机生成s
+    s12i = 1.0
+    if fix_scale:
+        s12i = np.random.randint(low=1, high=10, size=1) * np.random.rand()
 
-    T12i, T21i = compute_sim3(test_points1, test_points2 / 2, False)
+    # 对3D点进行处理
+    # FIXME: 这里的处理很有可能有问题，如果真有问题的话，上面计算几何误差就只能够计算单个点的了，中间旋转矩阵对点做的一些变换就也需要检查一下了！！！
+    points_test = s12i * R12i.dot(points) + t12i
+    # print(s12i * R12i.dot(points))
+    # print(t12i)
+    # print(points_test)
+    # points_test = np.array([
+    #     s12i * R12i.dot(points[0]) + t12i,
+    #     s12i * R12i.dot(points[1]) + t12i,
+    #     s12i * R12i.dot(points[2]) + t12i
+    # ])
+
+    # 计算标准答案T矩阵
+    T12i = np.zeros((4, 4))
+    T12i[0:3, 0:3] = s12i * R12i
+    T12i[0:3, 3] = t12i
+    T12i[3, 3] = 1
+
+    # 计算compute_sim3计算的结果
+    T12i_test, T21i_test = compute_sim3(points_test, points, fix_scale)
+    # T12i_test = umeyama_alignment(points.T, points_test.T, fix_scale)
+
+    # 输出结果
+    print("Matrix:")
+    print("Ground Truth:")
     print(T12i)
-    print(T21i)
-    print(geometric_error(test_points1[1], test_points2[1] / 2, T12i))
+    print("Test:")
+    print(T12i_test)
+    print("Geometric Error:")
+    print("GT:", geometric_error(points_test, points, T12i))
+    print("Test:", geometric_error(points_test, points, T12i_test))
+
+
+if __name__ == "__main__":
+    test_compute_sim3(fix_scale=False)
